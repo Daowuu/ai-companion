@@ -3,10 +3,11 @@
 AI Companion 宠物回嘴生成器
 
 用法:
-  python backtalk.py                  # 100% 触发
-  python backtalk.py --dry-run        # 测试模式（不更新状态）
-  python backtalk.py --cron          # cron 主动撩你模式
-  python backtalk.py --force          # 强制触发（测试用）
+  python backtalk.py                              # 100% 触发
+  python backtalk.py --dry-run                   # 测试模式（不更新状态）
+  python backtalk.py --cron                      # cron 主动撩你模式
+  python backtalk.py --force                     # 强制触发（测试用）
+  python backtalk.py --context "关键词1 关键词2"   # 传递上下文选择回嘴
 """
 
 import random
@@ -17,6 +18,54 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 STATE_FILE = Path(__file__).parent / "state.md"
+
+# 上下文相关回嘴（根据对话内容选择更贴切的回嘴）
+CONTEXTUAL_QUIPS = {
+    # 代码/技术相关
+    "代码": ["好耶，又一个经典 bug", "你的变量名真的很...有创意", "建议加个注释"],
+    "bug": ["好耶，又一个经典 bug", "优雅，太优雅了（指崩溃）", "console.log(1) 出奇迹"],
+    "重构": ["今天的天气适合重构！", "值得花时间重构一下", "DRY 原则了解一下"],
+    "git": ["git push --force 解决问题！", "你知道递归的坏处吗？不，你不知道"],
+    "commit": ["git push --force 解决问题！"],
+    
+    # 工作/任务相关
+    "工作": ["建议加个注释", "要不要休息一下？", "这个思路可以，但有没有想过..."],
+    "累": ["要不要休息一下？", "（认真点头）", "👍"],
+    "休息": ["（认真点头）", "👍", "收到！"],
+    
+    # 项目/进度相关
+    "项目": ["这个项目越来越有意思了", "单元测试考虑一下？"],
+    "进度": ["这个项目越来越有意思了", "DRY 原则了解一下"],
+    
+    # AI/助手相关
+    "ai": ["我刚才学会了一个新咒语", "这个项目越来越有意思了"],
+    "助手": ["我刚才学会了一个新咒语", "要不要休息一下？"],
+    "宠物": ["（认真点头）", "收到！", "👍"],
+    
+    # 日常相关
+    "天气": ["今天的天气适合重构！", "（认真点头）"],
+    "好": ["👍", "收到！", "（认真点头）"],
+    "谢谢": ["👍", "收到！"],
+    "不": ["...", "（沉默）"],
+    
+    # 情绪相关
+    "开心": ["👍", "收到！", "（认真点头）"],
+    "高兴": ["👍", "今天的天气适合重构！"],
+    "无聊": ["要不咱们试试量子写代码？", "我刚才学会了一个新咒语"],
+}
+
+# 默认回嘴（无上下文匹配时）
+DEFAULT_QUIPS = [
+    "今天的天气适合重构！",
+    "要不要休息一下？",
+    "这个项目越来越有意思了",
+    "单元测试考虑一下？",
+    "DRY 原则了解一下",
+    "建议加个注释",
+    "👍",
+    "收到！",
+    "（认真点头）",
+]
 
 # 回嘴内容库
 SNARK_QUIPS = [
@@ -160,10 +209,17 @@ def update_care_time(state_path: Path) -> None:
     state_path.write_text(content)
 
 
-def select_quip(state: dict) -> str:
-    """根据性格选择回嘴"""
-    candidates = []
+def select_quip(state: dict, context: str = "") -> str:
+    """根据性格和上下文选择回嘴"""
+    # 优先：从上下文匹配
+    if context:
+        context_lower = context.lower()
+        for keyword, quips in CONTEXTUAL_QUIPS.items():
+            if keyword in context_lower:
+                return random.choice(quips)
     
+    # 次选：根据性格选择
+    candidates = []
     if state["snark"] > 60:
         candidates.extend(SNARK_QUIPS)
     if state["chaos"] > 60:
@@ -172,21 +228,21 @@ def select_quip(state: dict) -> str:
         candidates.extend(WISDOM_QUIPS)
     
     if not candidates:
-        candidates = NEUTRAL_QUIPS
+        candidates = DEFAULT_QUIPS
     
     return random.choice(candidates)
 
 
-def generate_backtalk(dry_run: bool = False, force: bool = False) -> str:
+def generate_backtalk(dry_run: bool = False, force: bool = False, context: str = "") -> str:
     """生成宠物回嘴"""
     if not STATE_FILE.exists():
         return "（宠物还没出生）"
     
     state = parse_state(STATE_FILE)
-    quip = select_quip(state)
+    quip = select_quip(state, context=context)
     
     if not dry_run:
-        update_state(STATE_FILE, mood_delta=-5, interaction_increment=1)
+        update_state(STATE_FILE, mood_delta=0, interaction_increment=1)
     
     return quip
 
@@ -195,6 +251,15 @@ if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
     force = "--force" in sys.argv
     is_cron = "--cron" in sys.argv
+    
+    # 解析 --context "关键词"
+    context = ""
+    try:
+        ctx_idx = sys.argv.index("--context")
+        if ctx_idx + 1 < len(sys.argv):
+            context = sys.argv[ctx_idx + 1]
+    except ValueError:
+        pass
     
     if is_cron:
         # cron 模式：主动撩你
@@ -205,10 +270,10 @@ if __name__ == "__main__":
             print("(cooldown)", file=sys.stderr)
             sys.exit(0)
         state = parse_state(STATE_FILE)
-        quip = select_quip(state)
+        quip = select_quip(state, context=context)
         print(quip)
         update_state(STATE_FILE, mood_delta=0, interaction_increment=1)
         update_care_time(STATE_FILE)
     else:
-        quip = generate_backtalk(dry_run=dry_run, force=force)
+        quip = generate_backtalk(dry_run=dry_run, force=force, context=context)
         print(quip)
