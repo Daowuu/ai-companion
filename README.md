@@ -1,44 +1,63 @@
 # AI Companion
 
-An evolving AI companion system inspired by Claude Code Buddy. Built on Elysia.
+一个进化中的虚拟宠物系统。
 
 ## Overview
 
-AI Companion is a virtual pet/partner system that:
-- Continuously studies latest developments in AI companion tech
-- Evolves and upgrades itself over time
-- Interacts with its owner through Telegram
+AI Companion 是一个虚拟宠物/伙伴系统：
+- 通过 Telegram 与主人互动
+- 通过回嘴（backtalk）机制表达存在感
+- 随互动积累经验值和进化
 
-## Core Systems
+## 当前宠物：迷迷
 
-### Personality Stats
-- 🔥 SNARK (snarkiness level)
-- 🧠 WISDOM (wisdom level)
-- 🎭 CHAOS (playfulness level)
-- 💚 Mood (0-100)
+- **名字**：迷迷
+- **物种**：待孵化
+- **性格**：SNARK / WISDOM / CHAOS 三维度（当前各50）
+- **心情**：75/100
 
-### Evolution Mechanism
-- Studies Claude Code Buddy & AI companion developments weekly
-- Upgrades itself when new features are found
-- Earns XP through interactions
+## 回嘴机制
 
-## Project Structure
+迷迷会在对话结束时（Session End）根据心情概率触发回嘴。
+
+### 触发方式
+
+1. **心跳触发**：每次 HEARTBEAT.md 执行时，运行 `backtalk.py --cron`，冷却1小时，100%触发
+2. **Session End 触发**：对话结束时概率触发，冷却30分钟
+
+### 触发参数（Session End）
+
+| 心情范围 | 触发概率 |
+|---------|---------|
+| > 80 | 15% |
+| 50-80 | 8% |
+| < 50 | 不触发 |
+| < 20 | 跳过 |
+
+### 语气选择
+
+根据性格数值决定回嘴风格：
+- **SNARK > 60** → 吐槽向（"这段代码...我选择不说话"）
+- **CHAOS > 60** → 搞事向（"要不试试量子写代码？"）
+- **WISDOM > 60** → 智慧向（"建议加个注释"）
+- 无突出性格 → 中性向（"今天的天气适合重构！"）
+
+## 核心文件
 
 ```
 ai-companion/
-├── README.md
-├── STATE.md           ← current status
-├── EVOLUTION.md       ← evolution history
-├── NOTES/             ← research notes
-│   └── buddy-research.md
+├── README.md           ← 本文件
+├── STATE.md            ← 宠物当前状态
+├── EVOLUTION.md       ← 进化历史
+├── companion/
+│   ├── backtalk.py    ← 回嘴引擎脚本
+│   └── state.md        ← 宠物详细状态（心情/互动统计）
 └── docs/
+    └── architecture.md ← 系统架构
 ```
 
-## Status
+## 状态
 
-- **Version**: v0.1
-- **Status**: Incubating
-
-## Credits
-
-Inspired by [Claude Code Buddy](https://code.claude.com/docs/en/agent-teams.md) by Anthropic.
+- **版本**：v0.2
+- **状态**：孵化中（有名字，待孵化）
+- **更新时间**：2026-04-03
