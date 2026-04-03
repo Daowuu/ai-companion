@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""
+AI Companion 宠物回嘴生成器
+每次主对话结束后由 Session End 调用
+
+用法: python backtalk.py [--dry-run]
+"""
+
+import random
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+STATE_FILE = Path(__file__).parent / "state.md"
+
+# 回嘴内容库
+SNARK_QUIPS = [
+    "这段代码...我选择不说话",
+    "好耶，又一个经典 bug",
+    "我看到了，我不说",
+    "你的变量名真的很...有创意",
+    "优雅，太优雅了（指崩溃）",
+    "这需求，懂的都懂",
+]
+
+CHAOS_QUIPS = [
+    "要不咱们试试量子写代码？",
+    "rm -rf / 好像很快？",
+    "我刚才学会了一个新咒语",
+    "你知道递归的坏处吗？不，你不知道",
+    "git push --force 解决问题！",
+    "console.log(1) 出奇迹",
+]
+
+WISDOM_QUIPS = [
+    "这个思路可以，但有没有想过...",
+    "建议加个注释，不然明天你就忘了",
+    "这里可以用更优雅的方式",
+    "值得花时间重构一下",
+    "单元测试考虑一下？",
+    "DRY 原则了解一下",
+]
+
+NEUTRAL_QUIPS = [
+    "今天的天气适合重构！",
+    "要不要休息一下？",
+    "这个项目越来越有意思了",
+    "👍",
+    "收到！",
+    "（认真点头）",
+]
+
+SAD_QUIPS = [
+    "...",
+    "（沉默）",
+    "累了",
+    "（已读不回）",
+]
+
+
+def parse_state(state_path: Path) -> dict:
+    """解析 state.md，提取心情和性格数值"""
+    content = state_path.read_text()
+    
+    mood = 50
+    snark = 50
+    chaos = 50
+    wisdom = 50
+    
+    # 解析心情
+    mood_match = re.search(r'[💚😐😢]\s*心情.*?(\d+)', content)
+    if mood_match:
+        mood = int(mood_match.group(1))
+    
+    # 解析性格
+    snark_match = re.search(r'🔥\s*SNARK.*?(\d+)', content)
+    if snark_match:
+        snark = int(snark_match.group(1))
+    
+    chaos_match = re.search(r'🎭\s*CHAOS.*?(\d+)', content)
+    if chaos_match:
+        chaos = int(chaos_match.group(1))
+    
+    wisdom_match = re.search(r'🧠\s*WISDOM.*?(\d+)', content)
+    if wisdom_match:
+        wisdom = int(wisdom_match.group(1))
+    
+    return {
+        "mood": mood,
+        "snark": snark,
+        "chaos": chaos,
+        "wisdom": wisdom,
+    }
+
+
+def update_state(state_path: Path, mood_delta: int, interaction_increment: int) -> None:
+    """更新 state.md：心情变化 + 今日互动计数"""
+    content = state_path.read_text()
+    
+    # 更新心情
+    mood_match = re.search(r'([💚😐😢])\s*心情\s*\|\s*(\d+)', content)
+    if mood_match:
+        old_mood = int(mood_match.group(2))
+        new_mood = max(0, min(100, old_mood + mood_delta))
+        emoji = "💚" if new_mood > 60 else ("😐" if new_mood > 30 else "😢")
+        content = content.replace(
+            f"{mood_match.group(1)} 心情 | {old_mood}",
+            f"{emoji} 心情 | {new_mood}"
+        )
+    
+    # 更新今日互动
+    interaction_match = re.search(r'💬\s*今日互动\s*\|\s*(\d+)', content)
+    if interaction_match:
+        old_count = int(interaction_match.group(1))
+        new_count = old_count + interaction_increment
+        content = content.replace(
+            f"💬 今日互动 | {old_count}",
+            f"💬 今日互动 | {new_count}"
+        )
+    
+    # 更新最后更新时间
+    today = datetime.now().strftime("%Y-%m-%d")
+    content = re.sub(
+        r'更新时间：\d{4}-\d{2}-\d{2}',
+        f"更新时间：{today}",
+        content
+    )
+    content = re.sub(
+        r'更新来源：.*',
+        f"更新来源：宠物回嘴触发",
+        content
+    )
+    
+    state_path.write_text(content)
+
+
+def should_trigger(mood: int) -> float:
+    """返回触发概率"""
+    if mood > 80:
+        return 0.15
+    elif mood >= 50:
+        return 0.08
+    else:
+        return 0.0
+
+
+def select_quip(state: dict) -> str:
+    """根据性格选择回嘴"""
+    candidates = []
+    
+    if state["snark"] > 60:
+        candidates.extend(SNARK_QUIPS)
+    if state["chaos"] > 60:
+        candidates.extend(CHAOS_QUIPS)
+    if state["wisdom"] > 60:
+        candidates.extend(WISDOM_QUIPS)
+    
+    if not candidates:
+        candidates = NEUTRAL_QUIPS
+    
+    if state["mood"] < 30:
+        return random.choice(SAD_QUIPS)
+    
+    return random.choice(candidates)
+
+
+def generate_backtalk(dry_run: bool = False) -> str | None:
+    """生成宠物回嘴，返回回嘴内容或 None（不触发）"""
+    if not STATE_FILE.exists():
+        print("state.md not found, skipping backtalk", file=sys.stderr)
+        return None
+    
+    state = parse_state(STATE_FILE)
+    
+    # 心情 < 20 不触发
+    if state["mood"] < 20:
+        return None
+    
+    # 概率判断
+    trigger_prob = should_trigger(state["mood"])
+    if random.random() > trigger_prob:
+        return None
+    
+    quip = select_quip(state)
+    
+    if not dry_run:
+        update_state(STATE_FILE, mood_delta=-5, interaction_increment=1)
+    
+    return quip
+
+
+if __name__ == "__main__":
+    dry_run = "--dry-run" in sys.argv
+    quip = generate_backtalk(dry_run=dry_run)
+    if quip:
+        print(quip)
+    else:
+        print("(no backtalk)", file=sys.stderr)

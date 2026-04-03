@@ -104,7 +104,7 @@ ai-companion/
 
 ### 🚧 进行中
 
-- [ ] Main Session 宠物回嘴机制
+- [x] Main Session 宠物回嘴机制（2026-04-03）
 - [ ] 宠物物种/形象设计
 - [ ] 孵化流程
 
@@ -129,3 +129,19 @@ ai-companion/
 ### OpenClaw Main Session
 - 在主对话中偶尔触发宠物回嘴
 - 根据心情和性格数值决定
+
+### 回嘴实现细节
+
+**触发概率**：
+- 心情 > 80 → 15%
+- 心情 50-80 → 8%
+- 心情 < 50 → 不触发
+
+**回嘴脚本**：`ai-companion/companion/backtalk.py`
+- 读取 `state.md` 解析心情/性格
+- 根据性格选择语气库（SNARK/CHAOS/WISDOM/中性）
+- 更新 `state.md`（心情 -5，今日互动 +1）
+
+**Session End 集成**：
+- SOUL.md 添加宠物人格描述
+- AGENTS.md Session End 增加回嘴判断逻辑
